@@ -1,0 +1,11 @@
+{
+    "configurations": [
+        {
+            "type": "java",
+            "name": "CodeLens (Launch) - Robot",
+            "request": "launch",
+            "mainClass": "Robot",
+            "projectName": "Practical 1_b3e6a9e0"
+        }
+    ]
+}
