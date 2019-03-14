@@ -101,17 +101,16 @@ public class PotentialFieldsRobot {
 		this.goal = goalLocation;
 		this.goalRadius = goalRadius;
 		this.obstacles = obstacles;
-		threshold = sensorRange * 0.25;
+		threshold = radius * 1.5;
 
 	}
 
-	private boolean toWind = false;
-	private boolean unwind = false;
 	private boolean freespace = true;
 
 	// private double turnValue = 0;
 	private double threshold = 0;
 	private double wound = 0;
+	private int mandatorySteps = 0;
 
 	/**
 	 * Fractional progress movement method.
@@ -136,13 +135,11 @@ public class PotentialFieldsRobot {
 		double arcLength = Calculator.getArcLength(theta, curvature, chordLength);
 		double headingChange = getHeadingChangeInterval(theta, arcLength);
 
+		evaluateWind(moveTo, this.goal);
+
 		updateWind(moveTo);
 
-		double windValue =  wind(moveTo, this.goal);
-		System.out.println("Current wind value " + windValue);
-		System.out.println();
-
-		moveTowards(heading + headingChange + windValue);
+		moveTowards(heading + headingChange );
 
 		return true;
 	}
@@ -156,101 +153,105 @@ public class PotentialFieldsRobot {
 		if (moves.isEmpty()) {
 			return null;
 		}
-
-		toWind = false;
-		unwind = false;
-
 		// Stores all the sample points with an obstacle potential under the threshold.
-		ArrayList<Double> moveValues = new ArrayList<Double>();
-		ArrayList<IntPoints> windPoints = new ArrayList<Double>();
-		
+		double[] moveValues = new double[moves.size()];
 
+		// The sample point closest to an obstacle.
+		double mostObstaclePotential = 0;
+		IntPoint hitpoint = null;
+
+		// Optimal winding and unwinding points.
+		IntPoint maxUnwind = null;
 		IntPoint lowestWind = null;
-		IntPoint mostUnwound = null;
-		double goalHeading = calculateHeading(this.goal);
-		double minWind = Double.MAX_VALUE;
-		double maxUnwind = Double.MAX_VALUE;
-		double lowestObstaclePotential = Double.MAX_VALUE;
 
-		Iterator<IntPoint> i = moves.iterator();
-		while (i.hasNext()) {
+		IntPoint mandatoryStep = null;
+		
+		// The highest obstacle potential.
+		double highestObstPot = 0;
+		double bestUnwindingPoint = Double.MAX_VALUE;
+
+		for (int i = 0; i < moves.size(); i++)
+		{
 			// Find point with maximum fractional progress
-			IntPoint current = i.next();
-
+			IntPoint current = moves.get(i);
 			double obstaclePotential = getObstaclePotential(current);
+			double fractionalProgress = measureFractionalProgress(current, obstaclePotential);
 
-			if (obstaclePotential < lowestObstaclePotential)
-				lowestObstaclePotential = obstaclePotential;
-
-			moveValues.add(measureFractionalProgress(current, this.goal, obstaclePotential));
-
-			// Something that makes the wound value closer to 0.
-			double windVal = heading - calculateHeading(current);
-			// TODO: Find the sample point that will wind the least
-			// The value that gives you the maximum fractional progress is the value that
-			// will wind the least.
-
-			if (obstaclePotential < threshold)
+			// Store fractional progress values.
+			moveValues[i] = fractionalProgress;
+			System.out.println("X: " + current.x + " Y: " + current.y + " at heading " + Math.round(calculateHeading(current)));
+			System.out.println("Current Heading " + Math.round(heading));
+			
+			if(obstaclePotential > mostObstaclePotential)
 			{
+				// Finds the sample point wiht the most obstacle potential (hitpoint).
+				mostObstaclePotential = obstaclePotential;
+				hitpoint = current;
+			}
 
-				if (minWind > windVal) 
+			if(Math.round(heading) == Math.round(calculateHeading(current)))
+			{
+				// Look for a sample point with the same direction to find the best mandatory step
+				mandatoryStep = current;
+				System.out.println("Mandatory step to X:" + mandatoryStep.x + " Y:" + mandatoryStep.y + " at heading " + calculateHeading(mandatoryStep));
+			}
+		}
+
+		for(int i = 0; i < moves.size(); i++)
+		{
+			double obstaclePotential = getObstaclePotential(moves.get(i));
+			// The value that gives you the maximum fractional progress is the value that will wind the least.
+			if (obstaclePotential < threshold && hitpoint != null)
+			{
+				IntPoint current = moves.get(i);
+				if (obstaclePotential > highestObstPot) 
 				{
-					minWind = windVal;
+					// Get the most viable wind point
+					highestObstPot = obstaclePotential;
 					lowestWind = current;
 				}
-				double unWindVal =  wound - windVal;
-				
-				// TODO: Find the sample point that will unwind the most
-				// Can't unwind if the obstacle potential will be increased.
-				// Unwind only until the object leaves the obstacle
-			
-				// System.out.println("There is a viable unwinding point with an unwind of " + unWindVal);
-				// System.out.println("Max Unwind has a value of " + maxUnwind);
-				// System.out.println("Most unwound is empty " + (mostUnwound == null));
-				if (maxUnwind > Math.abs(unWindVal)) 
-				{
-					// Tries to unwind as much as possible.
-					maxUnwind = windVal;
-					mostUnwound = current;
-				}
-				
-			}
-		}
 
-		IntPoint movePoint = moves.get(moveValues.indexOf(Collections.min(moveValues))); // Return the lowest valued
-																							// move;
-		double obstaclePotential = getObstaclePotential(movePoint);
-		// Need to check for a point that unwinds the most without increasing obstacle
-		// potential past threshold
-		
-		
-		System.out.println("Obstacle potential: " + obstaclePotential);
-		if (obstaclePotential > threshold) 
-		{
-			System.out.println("Unwound is empty as the most optimal point " + (mostUnwound == null));
-			if (mostUnwound != null) {
-				System.out.println("Unwinding!");
-				System.out.println("Unwind Value " + maxUnwind);
-				System.out.println("Lowest Obstacle potential: " + lowestObstaclePotential);
-				
-				movePoint = mostUnwound;
-				wound -= maxUnwind;
-				unwind = true;
-			} else if (lowestWind != null) {
-				System.out.println("Winding!");
-				System.out.println("Wind Value " + minWind + " previously wound " + wound);
-				System.out.println("Lowest Obstacle potential: " + lowestObstaclePotential);
-				
-				movePoint = lowestWind;
-				wound = minWind;
-				toWind = true;
+				// Intensity determines how much the robot will "stick" to the obstacle.
+				double intensity = Math.abs(radius * (heading - 1));
+				System.out.println("Radius is " + intensity+ " and Threshold " + threshold );
+				if(distance(current, goal) + intensity< distance(hitpoint, goal))
+				{
+					// Get the most viable unwind point if the hitpoint is further away than the robot.
+					if(bestUnwindingPoint > obstaclePotential)
+					{
+						maxUnwind = current;
+						bestUnwindingPoint = obstaclePotential;
+					}
+				}
 			}
-			// System.out.println("The Obstacle potential to wind is " +
-			// getObstaclePotential(movePoint));
+		}		
+		 
+		IntPoint movePoint = moves.get(minIndex(moveValues));
+		if (maxUnwind != null) 
+		{
+			System.out.println("Unwinding!");			
+			movePoint = maxUnwind;
+		} else if (lowestWind != null) 
+		{
+			System.out.println("Winding around obstacle potential " + highestObstPot);
+			movePoint = lowestWind;
 		}
-		
+		 
+		if(mandatorySteps < 0 && freespace)
+		{
+			System.out.println("Mandatory step");
+			movePoint = mandatoryStep;
+			mandatorySteps++;
+		}
 
 		return movePoint;
+	}
+
+	private void evaluateWind(IntPoint movePoint, IntPoint goal)
+	{
+		wound = calculateHeading(movePoint) - calculateHeading(goal);
+		System.out.println("The robot wound " + wound);
+		System.out.println();
 	}
 
 	private void updateWind(IntPoint moveTo) {
@@ -258,13 +259,12 @@ public class PotentialFieldsRobot {
 		if (obstaclePotential == 0) {
 			// Continue to use fractional progress in free space
 			// System.out.println("Freespace");
+			
 			freespace = true;
-			toWind = false;
-			wound = 0;
 		} else {
 			// If not in free space but still under threshold then continue to use
 			// fractional progress
-			// System.out.println("Not In freespace");
+			mandatorySteps = 0;
 			freespace = false;
 		}
 	}
@@ -273,12 +273,12 @@ public class PotentialFieldsRobot {
 	 * TODO: Use this in the move function I guess to determine the percentage of
 	 * the path left required to traverse.
 	 */
-	private double measureFractionalProgress(IntPoint point, IntPoint goal, double obstaclePotential) {
+	private double measureFractionalProgress(IntPoint point, double obstaclePotential) {
 		// p is 1st arc length to sample point
 		// f is 3-arc length total + obstacle potential
 		ArcSet arcs = get3Arcs(point, false);
-		double firstArcLength = arcs.firstArc.arcLength;
-		double estimatedFuture = (arcs.secondArc.arcLength + arcs.thirdArc.arcLength) + obstaclePotential;
+		double firstArcLength = arcs.firstArc.arcLength / 100;
+		double estimatedFuture = (arcs.secondArc.arcLength + arcs.thirdArc.arcLength + obstaclePotential)/ 100;
 
 		return estimatedFuture / (firstArcLength + estimatedFuture);
 	}
@@ -839,7 +839,7 @@ public class PotentialFieldsRobot {
 	private int minIndex(double[] nums) {
 		int minIndex = 0;
 		for (int i = 1; i < nums.length; i++) {
-			if (nums[i] < nums[minIndex] && nums[i] != -1)
+			if (nums[i] < nums[minIndex])
 				minIndex = i;
 		}
 		return minIndex;
