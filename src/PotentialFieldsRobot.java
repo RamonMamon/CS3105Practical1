@@ -48,16 +48,15 @@ public class PotentialFieldsRobot {
 	private MyArc secondArc;
 	private MyArc thirdArc;
 
-	// private Vector lastMove;
-
-	// private final int vistedScorePower;
-	// private final int goalScoreFactor;
-	// private final int visitedBoxSize;
-
 	private final int VISITED_HISTOGRAM_LENGTH = 10000; // PotentialFields.frameLength / visitedBoxSize;
 	private final int VISITED_HISTOGRAM_HEIGHT = 10000; // PotentialFields.graphicsHeight / visitedBoxSize;
 
 	private final int[][] visitedHistogram = new int[VISITED_HISTOGRAM_LENGTH][VISITED_HISTOGRAM_HEIGHT];
+
+	private boolean freespace = true;
+	private double turnValue = 0;
+	private double threshold = 0;
+	private double wound = 0;
 
 	// -------------//
 	// Constructor //
@@ -105,15 +104,8 @@ public class PotentialFieldsRobot {
 
 	}
 
-	private boolean freespace = true;
-
-	// private double turnValue = 0;
-	private double threshold = 0;
-	private double wound = 0;
-	private int mandatorySteps = 0;
-
 	/**
-	 * Fractional progress movement method.
+	 * Moves the robot using Fractional Progress
 	 */
 	public boolean fractional() {
 		// If Fractional progress button is checked, use newEvalSamplePointsArc()
@@ -136,16 +128,16 @@ public class PotentialFieldsRobot {
 		double headingChange = getHeadingChangeInterval(theta, arcLength);
 
 		evaluateWind(moveTo, this.goal);
-
-		updateWind(moveTo);
-
-		moveTowards(heading + headingChange );
+		updateTurnValue(arcLength, curvature);
+		moveTowards(heading + headingChange);
 
 		return true;
 	}
 
 	/**
-	 * TODO: EDIT THIS New version of evaluateSamplePointsArc Method.
+	 * Alternative implementation of evaluatesamplepoints arc that uses fractional progress
+	 * instead. This also has a POTBUG implementation that makes the robot cling to obstacles
+	 * once a threshold is broken.
 	 */
 	private IntPoint newEvalSamplePointsArc() {
 		List<IntPoint> moves = getSamplePoints();
@@ -163,8 +155,6 @@ public class PotentialFieldsRobot {
 		// Optimal winding and unwinding points.
 		IntPoint maxUnwind = null;
 		IntPoint lowestWind = null;
-
-		IntPoint mandatoryStep = null;
 		
 		// The highest obstacle potential.
 		double highestObstPot = 0;
@@ -179,8 +169,8 @@ public class PotentialFieldsRobot {
 
 			// Store fractional progress values.
 			moveValues[i] = fractionalProgress;
-			System.out.println("X: " + current.x + " Y: " + current.y + " at heading " + Math.round(calculateHeading(current)));
-			System.out.println("Current Heading " + Math.round(heading));
+			// System.out.println("X: " + current.x + " Y: " + current.y + " at heading " + Math.round(calculateHeading(current)));
+			// System.out.println("Current Heading " + Math.round(heading));
 			
 			if(obstaclePotential > mostObstaclePotential)
 			{
@@ -189,13 +179,9 @@ public class PotentialFieldsRobot {
 				hitpoint = current;
 			}
 
-			if(Math.round(heading) == Math.round(calculateHeading(current)))
-			{
-				// Look for a sample point with the same direction to find the best mandatory step
-				mandatoryStep = current;
-				System.out.println("Mandatory step to X:" + mandatoryStep.x + " Y:" + mandatoryStep.y + " at heading " + calculateHeading(mandatoryStep));
-			}
 		}
+
+//		System.out.println("Heading is " +  heading + " goal heading " + );
 
 		for(int i = 0; i < moves.size(); i++)
 		{
@@ -211,9 +197,12 @@ public class PotentialFieldsRobot {
 					lowestWind = current;
 				}
 
+				double sensitivity = heading - calculateHeading(goal);
+//				System.out.println("Sensitivity is " +  sensitivity);
+
 				// Intensity determines how much the robot will "stick" to the obstacle.
-				double intensity = Math.abs(radius * (heading - 1));
-				System.out.println("Radius is " + intensity+ " and Threshold " + threshold );
+				double intensity = Math.abs(radius * sensitivity);
+				System.out.println("Intensity is " + intensity);
 				if(distance(current, goal) + intensity< distance(hitpoint, goal))
 				{
 					// Get the most viable unwind point if the hitpoint is further away than the robot.
@@ -226,6 +215,7 @@ public class PotentialFieldsRobot {
 			}
 		}		
 		 
+		// Selects the most viable move point.
 		IntPoint movePoint = moves.get(minIndex(moveValues));
 		if (maxUnwind != null) 
 		{
@@ -236,17 +226,13 @@ public class PotentialFieldsRobot {
 			System.out.println("Winding around obstacle potential " + highestObstPot);
 			movePoint = lowestWind;
 		}
-		 
-		if(mandatorySteps < 0 && freespace)
-		{
-			System.out.println("Mandatory step");
-			movePoint = mandatoryStep;
-			mandatorySteps++;
-		}
 
 		return movePoint;
 	}
 
+	/**
+	 * Evaluates how much the robot has wound from its past move.
+	 */
 	private void evaluateWind(IntPoint movePoint, IntPoint goal)
 	{
 		wound = calculateHeading(movePoint) - calculateHeading(goal);
@@ -254,39 +240,36 @@ public class PotentialFieldsRobot {
 		System.out.println();
 	}
 
-	private void updateWind(IntPoint moveTo) {
-		double obstaclePotential = getObstaclePotential(moveTo);
-		if (obstaclePotential == 0) {
-			// Continue to use fractional progress in free space
-			// System.out.println("Freespace");
-			
-			freespace = true;
-		} else {
-			// If not in free space but still under threshold then continue to use
-			// fractional progress
-			mandatorySteps = 0;
-			freespace = false;
-		}
+	/**
+	 * Updates the turn value from the Robots previous move.
+	 */
+	private void updateTurnValue(double arcLength, double curvature) 
+	{
+		double currentTurn = arcLength * curvature;
+		System.out.println("The robot turned " + currentTurn);
+		turnValue += currentTurn;
 	}
 
 	/**
-	 * TODO: Use this in the move function I guess to determine the percentage of
-	 * the path left required to traverse.
+	 * Returns the total turn valule
 	 */
-	private double measureFractionalProgress(IntPoint point, double obstaclePotential) {
-		// p is 1st arc length to sample point
-		// f is 3-arc length total + obstacle potential
-		ArcSet arcs = get3Arcs(point, false);
-		double firstArcLength = arcs.firstArc.arcLength / 100;
-		double estimatedFuture = (arcs.secondArc.arcLength + arcs.thirdArc.arcLength + obstaclePotential)/ 100;
-
-		return estimatedFuture / (firstArcLength + estimatedFuture);
+	public double getTotalTurn()
+	{
+		return turnValue;
 	}
 
-	private double wind(IntPoint moveTo, IntPoint goal) {
-		if (freespace)
-			return 0;
-		return calculateHeading(moveTo) - calculateHeading(goal);
+	/**
+	 * Measures the fractional Progress of a point.
+	 */
+	private double measureFractionalProgress(IntPoint point, double obstaclePotential) 
+	{
+		ArcSet arcs = get3Arcs(point, false);
+		// Past cost
+		double firstArcLength = arcs.firstArc.arcLength ;
+		// Estimated future cost
+		double estimatedFuture = (arcs.secondArc.arcLength + arcs.thirdArc.arcLength + obstaclePotential);
+
+		return estimatedFuture / (firstArcLength + estimatedFuture);
 	}
 
 	/**
@@ -313,6 +296,7 @@ public class PotentialFieldsRobot {
 		double arcLength = Calculator.getArcLength(theta, curvature, chordLength);
 		double headingChange = getHeadingChangeInterval(theta, arcLength);
 
+		updateTurnValue(arcLength, curvature);
 		moveTowards(heading + headingChange);
 
 		return true;
@@ -494,8 +478,10 @@ public class PotentialFieldsRobot {
 		if (makeMove == null)
 			return false;
 
-		setArcs(get3Arcs(moveTo, true));
+		ArcSet move = get3Arcs(moveTo, true);
+		setArcs(move);
 
+		updateTurnValue(move.firstArc.arcLength, move.firstArc.curvature);
 		double newHeading = calculateHeading(makeMove);
 		moveTowards(newHeading); // Make the move
 		return true;

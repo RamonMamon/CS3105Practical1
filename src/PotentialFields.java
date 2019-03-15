@@ -36,6 +36,10 @@ public class PotentialFields {
 	private final int easyCourseId;
 	private final int medCourseId;
 	private final int hardCourseId;
+	private final int severeCId;
+	private final int shallowCId;
+    private final int circularCId;
+
         private final int newobsticalShape;
         
 	private final int enMikeId;
@@ -148,7 +152,10 @@ public class PotentialFields {
 		easyCourseId = gui.addButton(3, 1, "Easy", this, "easyCourse");
 		medCourseId = gui.addButton(3, 2, "Medium", this, "medCourse");
 		hardCourseId = gui.addButton(3, 3, "Hard", this, "hardCourse");
-                newobsticalShape  = gui.addButton(3,4 , "5-point obstacle ", this, "newobsticalShape");   
+        newobsticalShape  = gui.addButton(3,4 , "5-point obstacle ", this, "newobsticalShape");
+        severeCId = gui.addButton(3, 5, "Severe C", this, "severeC");
+        shallowCId = gui.addButton(3, 6, "Shallow C", this, "shallowC");
+        circularCId = gui.addButton(3, 7, "Circular C", this, "circularC");
 
 		// Custom obstacles
 		gui.addLabel(4, 0, "Or add in your own obstacles: ");
@@ -374,6 +381,40 @@ public class PotentialFields {
                 
 		newGUI.hide();
 	}
+
+	public void severeC()
+    {
+        int[][] linePoints = { { 1000, 200 }, { 1200, 100 }, { 1400, 0 }, { 1200, -100 }, { 1000, -200 } };
+        makeCustomCourse(linePoints);
+    }
+
+    public void shallowC()
+    {
+        int[][] linePoints = { { 1000, 400 }, { 1200, 200 }, { 1400, 0 }, { 1200, -200 }, { 1000, -400 } };
+        makeCustomCourse(linePoints);
+    }
+
+    public void circularC()
+    {
+        int[][] linePoints = { { 1150, 400 }, { 1300, 200 }, { 1400, 0 }, { 1300, -200 }, { 1150, -400 } };
+        makeCustomCourse(linePoints);
+    }
+
+    private void makeCustomCourse(int[][] linePoints)
+    {
+        clearObs();
+        setStart("800", "0");
+        setGoal("1600", "0");
+        gui.setTextFieldContent(goalRadiusId, "20");
+
+        RenderablePolyline line = new RenderablePolyline();
+        for (int[] p : linePoints) {
+            line.addPoint(p[0], p[1]);
+        }
+        line.setProperties(Color.DARK_GRAY, 2f);
+        setupObstacle(line);
+    }
+
 	/**
 	 * Set up the 'hard' pre-made course
 	 */
@@ -610,6 +651,8 @@ public class PotentialFields {
 		startAndGoal.setStartAndGoal(start, goal, goalRad);
 		RenderableString rs = null;
 		RenderableString rs2 = null;
+		RenderableString rs3 = null;
+		RenderableString rs4 = null;
 		RenderablePolyline path = new RenderablePolyline();
 		path.setProperties(Color.BLACK, 1f);
 		path.addPoint(start.x, start.y);
@@ -668,10 +711,11 @@ public class PotentialFields {
 				}
 			}
 
+			int textCoordinates = goal.x + 100;
 			// Print path length so far
 			gui.unDraw(rs);
 			l += rob.getStepSize();
-			rs = new RenderableString(820, 20, "Distance Travelled (pixels): " + l);
+			rs = new RenderableString(textCoordinates, goal.y+60, "Distance Travelled (pixels): " + l);
 			rs.setLayer(456);
 			rs.setProperties(Color.BLUE, new Font(Font.SERIF, Font.BOLD, 14));
 			gui.draw(rs);
@@ -679,10 +723,20 @@ public class PotentialFields {
 			// Print current goal path smoothness
 			gui.unDraw(rs2);
 			//l += rob.getStepSize();TODO
-			rs2 = new RenderableString(820, 0, "Path Smoothness Rating: " + (calculateSmoothness(path)));
+			rs2 = new RenderableString(textCoordinates, goal.y + 40, "Path Smoothness Rating: " + (calculateSmoothness(path)));
 			rs2.setLayer(456);
 			rs2.setProperties(Color.BLUE, new Font(Font.SERIF, Font.BOLD, 14));
 			gui.draw(rs2);
+
+			rs3 = new RenderableString(textCoordinates, goal.y + 20, "Total amount turned: " + rob.getTotalTurn());
+			rs3.setLayer(456);
+			rs3.setProperties(Color.BLUE, new Font(Font.SERIF, Font.BOLD, 14));
+			gui.draw(rs3);
+
+			rs4 = new RenderableString(textCoordinates, goal.y, "Total Number of Steps: " + l/rob.getStepSize());
+			rs4.setLayer(456);
+			rs4.setProperties(Color.BLUE, new Font(Font.SERIF, Font.BOLD, 14));
+			gui.draw(rs4);
 
 			gui.update();
 		}
@@ -690,6 +744,8 @@ public class PotentialFields {
 		// Print metrics to console
 		System.out.println("Distance Travelled (pixels): " + l);
 		System.out.println("Path Smoothness: " + calculateSmoothness(path));
+		System.out.println("Total amount turned: " + rob.getTotalTurn());
+		System.out.println("Number of steps: " + l/rob.getStepSize());
 
 		// Re-enable buttons when finished
 		setButtons(true);
@@ -723,6 +779,9 @@ public class PotentialFields {
 		gui.setButtonEnabled(medCourseId, enabled);
 		gui.setButtonEnabled(hardCourseId, enabled);
 		gui.setButtonEnabled(newobsticalShape, enabled);
+        gui.setButtonEnabled(shallowCId, enabled);
+        gui.setButtonEnabled(severeCId, enabled);
+        gui.setButtonEnabled(circularCId, enabled);
 	}
 
 	/**
